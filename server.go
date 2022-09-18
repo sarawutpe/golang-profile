@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"main/api"
 	"main/db"
 	"net/http"
@@ -22,6 +23,7 @@ func authorized(c *gin.Context) {
 }
 
 func main() {
+	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 	corsApi := router.Group("/api", authorized)
 	{
@@ -43,7 +45,9 @@ func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		router.Run(":3000")
+		log.Println("go")
 	} else {
 		router.Run(":" + port)
 	}
+
 }

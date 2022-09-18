@@ -22,4 +22,5 @@ func SetupDB() {
 
 	database.AutoMigrate(&model.Avatar{})
 	db = database
+
 }

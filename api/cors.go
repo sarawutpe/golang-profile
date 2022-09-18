@@ -41,15 +41,15 @@ type error interface {
 	Error() string
 }
 
-func useUploadFile(form *model.Avatar, c *gin.Context) (error, string) {
+func useUploadFile(avatar *model.Avatar, c *gin.Context) error {
 	dir, _ := os.Getwd()
 	file, _ := c.FormFile("file")
 	if file != nil {
 		// Check file
 		fileSize := file.Size
-		maxFileSize := 4194304 // 4MB
+		maxFileSize := 1048576 // 1MB
 		if fileSize > int64(maxFileSize) {
-			return errors.New("max file size 4mb"), ""
+			return errors.New("max file size 1mb")
 		}
 		// Upload the file to specific dst.
 		uniqueId := uuid()
@@ -63,60 +63,56 @@ func useUploadFile(form *model.Avatar, c *gin.Context) (error, string) {
 		execWebp := exec.Command("cwebp", "-resize", "360", "360", "-o", fileWebp, fileTmp)
 		execWebpErr := execWebp.Run()
 		if execWebpErr != nil {
-			return errors.New("err"), "error"
+			return errors.New("error")
 		}
 		// Remove original file
-		fileOrg := fmt.Sprintf("%s/public/%s", dir, form.Avatar)
-		if form.Avatar != "" {
+		fileOrg := fmt.Sprintf("%s/public/%s", dir, avatar.Avatar)
+		if avatar.Avatar != "" {
 			if err := useRemoveFile(fileOrg); err != nil {
 				log.Println(err)
-				return err, ""
+				return err
 			}
 		}
-
 		// Remove tmp file
-		// defer useRemoveFile(fileTmp)
-
-		// if err, compress := compressWebp(fileId, fileExt, fileOrg); err {
-		// 	return true, compress
-		// }
-
-		return nil, uniqueId + ".webp"
+		defer useRemoveFile(fileTmp)
+		// assign file name to model
+		avatar.Avatar = uniqueId + ".webp"
+		return nil
 	}
 	// Remove avatar to empty
-	if form.Avatar != "" {
-		fileOrg := fmt.Sprintf("%s/public/%s", dir, form.Avatar)
+	if avatar.Avatar != "" {
+		fileOrg := fmt.Sprintf("%s/public/%s", dir, avatar.Avatar)
 		if err := useRemoveFile(fileOrg); err != nil {
 			log.Println(err)
-			return err, ""
+			return err
 		}
-		return nil, ""
+		return nil
 	}
-	return nil, ""
+	return nil
 }
 
-func validationPipeId(c *gin.Context) (bool, string) {
-	if id, _ := strconv.ParseInt(c.Param("id"), 10, 32); id == 0 {
-		return true, "invalid id"
+func validationPipeId(id string) error {
+	if id, _ := strconv.ParseInt(id, 10, 32); id == 0 {
+		return errors.New("invalid id")
 	}
-	return false, ""
+	return nil
 }
 
-func validationPipeIdNotEqual(c *gin.Context) (bool, string) {
-	if c.Param("id") != c.PostForm("user_id") {
-		return true, "id should be equal"
+func validationPipeIdNotEqual(id string, user_id string) error {
+	if id != user_id {
+		return errors.New("id should be equal")
 	}
-	return false, ""
+	return nil
 }
 
 func UpdateAvatar(c *gin.Context) {
 	// invalid id
-	if errId, validateId := validationPipeId(c); errId {
-		c.JSON(http.StatusBadRequest, gin.H{"message": validateId})
+	if err := validationPipeId(c.Param("id")); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
-	if errIdNotEqual, validateIdNotEqual := validationPipeIdNotEqual(c); errIdNotEqual {
-		c.JSON(http.StatusBadRequest, gin.H{"message": validateIdNotEqual})
+	if err := validationPipeIdNotEqual(c.Param("id"), c.PostForm("user_id")); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
 	// Create Form
@@ -127,12 +123,10 @@ func UpdateAvatar(c *gin.Context) {
 		userId, _ := strconv.ParseInt(c.PostForm("user_id"), 10, 32)
 		avatar.UserId = uint(userId)
 		// Use Upload File
-		errFile, fileResult := useUploadFile(&avatar, c)
-		if errFile != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"message": fileResult})
+		if err := useUploadFile(&avatar, c); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 			return
 		}
-		avatar.Avatar = fileResult
 		// Create now!
 		if err := db.GetDB().Save(&avatar).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"success": false, "message": err})
@@ -142,12 +136,10 @@ func UpdateAvatar(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"success": true, "data": avatar})
 	} else {
 		// Use Upload File
-		errFile, fileResult := useUploadFile(&avatar, c)
-		if errFile != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"message": fileResult})
+		if err := useUploadFile(&avatar, c); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 			return
 		}
-		avatar.Avatar = fileResult
 		// Update now!
 		if err := db.GetDB().Model(&avatar).Update("avatar", avatar.Avatar).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"success": false, "message": err})
@@ -160,8 +152,9 @@ func UpdateAvatar(c *gin.Context) {
 func GetAvatarById(c *gin.Context) {
 	avatar := model.Avatar{}
 	// invalid id
-	if errId, validateId := validationPipeId(c); errId {
-		c.JSON(http.StatusBadRequest, gin.H{"message": validateId})
+	if err := validationPipeId(c.Param("id")); err != nil {
+		log.Println(err)
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
 	// Response
