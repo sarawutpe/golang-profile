@@ -8,6 +8,7 @@ import (
 	"main/model"
 	"math/rand"
 	"os/exec"
+
 	"strconv"
 
 	"net/http"
@@ -16,6 +17,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+type error interface {
+	Error() string
+}
 
 func uuid() string {
 	var chars = []rune("0123456789")
@@ -26,19 +31,14 @@ func uuid() string {
 	return string(str)
 }
 
-func useRemoveFile(file string) error {
+func useRemoveFile(file string) {
 	info, err := os.Stat(file)
 	if !info.IsDir() && err == nil {
 		err := os.Remove(file)
 		if err != nil {
-			return err
+			log.Println(err)
 		}
 	}
-	return nil
-}
-
-type error interface {
-	Error() string
 }
 
 func useUploadFile(avatar *model.Avatar, c *gin.Context) error {
@@ -51,41 +51,29 @@ func useUploadFile(avatar *model.Avatar, c *gin.Context) error {
 		if fileSize > int64(maxFileSize) {
 			return errors.New("max file size 1mb")
 		}
+		// Remove Original File
+		orgFileName := avatar.Avatar
+		path := fmt.Sprintf("%s/public/%s", dir, orgFileName)
+		if orgFileName != "" {
+			exe := exec.Command("rm", ".", path)
+			exe.Run()
+		}
+
 		// Upload the file to specific dst.
 		uniqueId := uuid()
-		fileTmp := fmt.Sprintf("%s/tmp/%s%s", dir, uniqueId, ".tmp")
+		fileTmp := fmt.Sprintf("%s/public/%s%s", dir, uniqueId, ".tmp")
 		saveUploadedErr := c.SaveUploadedFile(file, fileTmp)
 		if saveUploadedErr != nil {
 			log.Println(saveUploadedErr)
 		}
-		// Compress to Webp
-		fileWebp := fmt.Sprintf("%s/public/%s%s", dir, uniqueId, ".webp")
-		execWebp := exec.Command("cwebp", "-resize", "360", "360", "-o", fileWebp, fileTmp)
-		execWebpErr := execWebp.Run()
-		if execWebpErr != nil {
-			return errors.New("error")
-		}
-		// Remove original file
-		fileOrg := fmt.Sprintf("%s/public/%s", dir, avatar.Avatar)
-		if avatar.Avatar != "" {
-			if err := useRemoveFile(fileOrg); err != nil {
-				log.Println(err)
-				return err
-			}
-		}
-		// Remove tmp file
-		defer useRemoveFile(fileTmp)
-		// assign file name to model
+		// Assign file name to model
 		avatar.Avatar = uniqueId + ".webp"
 		return nil
 	}
 	// Remove avatar to empty
 	if avatar.Avatar != "" {
 		fileOrg := fmt.Sprintf("%s/public/%s", dir, avatar.Avatar)
-		if err := useRemoveFile(fileOrg); err != nil {
-			log.Println(err)
-			return err
-		}
+		defer useRemoveFile(fileOrg)
 		return nil
 	}
 	return nil
@@ -143,7 +131,6 @@ func UpdateAvatar(c *gin.Context) {
 		// Update now!
 		if err := db.GetDB().Model(&avatar).Update("avatar", avatar.Avatar).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"success": false, "message": err})
-			return
 		}
 		c.JSON(http.StatusOK, gin.H{"success": true, "data": avatar})
 	}

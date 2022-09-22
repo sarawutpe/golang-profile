@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"main/api"
 	"main/db"
 	"net/http"
@@ -32,7 +31,7 @@ func main() {
 	}
 	router.Use(cors.Middleware(cors.Config{
 		Origins:         "*",
-		Methods:         "GET, PUT, POST, DELETE",
+		Methods:         "GET, PUT",
 		RequestHeaders:  "Origin, Authorization, Content-Type",
 		ExposedHeaders:  "",
 		MaxAge:          50 * time.Second,
@@ -45,7 +44,6 @@ func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		router.Run(":3000")
-		log.Println("go")
 	} else {
 		router.Run(":" + port)
 	}
