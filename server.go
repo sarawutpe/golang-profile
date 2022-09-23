@@ -3,49 +3,43 @@ package main
 import (
 	"main/api"
 	"main/db"
-	"net/http"
 	"os"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	cors "github.com/itsjamie/gin-cors"
 )
 
 // handling middleware
 func authorized(c *gin.Context) {
-	token := c.Query("token")
-	if token != "7FC2D72AB1D9E" {
-		c.JSON(http.StatusUnauthorized, gin.H{"message": "access denied!"})
-		c.Abort()
-	}
 	c.Next()
 }
 
 func main() {
 	gin.SetMode(gin.ReleaseMode)
-	router := gin.Default()
-	corsApi := router.Group("/api", authorized)
+	r := gin.Default()
+	r.MaxMultipartMemory = 1 << 20
+	corsApi := r.Group("/api", authorized)
 	{
 		corsApi.GET("/avatar/:id", api.GetAvatarById)
 		corsApi.PUT("/avatar/:id", api.UpdateAvatar)
 	}
-	router.Use(cors.Middleware(cors.Config{
-		Origins:         "*",
-		Methods:         "GET, PUT",
-		RequestHeaders:  "Origin, Authorization, Content-Type",
-		ExposedHeaders:  "",
-		MaxAge:          50 * time.Second,
-		Credentials:     false,
-		ValidateHeaders: false,
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"GET", "PUT"},
+		AllowHeaders:     []string{"Origin, X-Requested-With, Content-Type, Accept, Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge: 12 * time.Hour,
 	}))
-	router.Static("/public", "./public")
+
+	r.Static("/public", "./public")
 	db.SetupDB()
 	// start port
 	port := os.Getenv("PORT")
 	if port == "" {
-		router.Run(":3000")
+		r.Run(":3000")
 	} else {
-		router.Run(":" + port)
+		r.Run(":" + port)
 	}
-
 }
