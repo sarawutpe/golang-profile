@@ -34,7 +34,7 @@ func useRemoveFile(file string) bool {
 	return true
 }
 
-func useUploadFile(avatar *model.Avatar, c *gin.Context) error {
+func useUploadFile(profile *model.Profile, c *gin.Context) error {
 	dir, _ := os.Getwd()
 	file, _ := c.FormFile("file")
 	if file != nil {
@@ -53,17 +53,19 @@ func useUploadFile(avatar *model.Avatar, c *gin.Context) error {
 			log.Println(err)
 		}
 		// Remove original File
-		if avatar.Avatar != "" {
-			useRemoveFile(avatar.Avatar)
+		if profile.Profile != "" {
+			useRemoveFile(profile.Profile)
 		}
-		// Assign file name to model
-		avatar.Avatar = fileName
+		// Assign file value to model
+		profile.Profile = fileName
 		return nil
 	}
-	// Remove avatar to empty
-	if avatar.Avatar != "" {
-		fileOrg := fmt.Sprintf("%s/public/%s", dir, avatar.Avatar)
-		useRemoveFile(fileOrg)
+	// Remove profile to empty
+	reset := c.Query("reset")
+	if profile.Profile != "" && reset == "1" {
+		useRemoveFile(profile.Profile)
+		// Assign empty value to model
+		profile.Profile = ""
 		return nil
 	}
 	return nil
@@ -83,8 +85,12 @@ func validationPipeIdNotEqual(id string, user_id string) error {
 	return nil
 }
 
-func UpdateAvatar(c *gin.Context) {
-	// Invalid id
+func UpdateProfile(c *gin.Context) {
+	profile := model.Profile{}
+
+	log.Println(c.Request.Body)
+
+	// Validate Pipe
 	if err := validationPipeId(c.Param("id")); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
 		return
@@ -93,47 +99,48 @@ func UpdateAvatar(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	// Create Form
-	avatar := model.Avatar{}
-	findAvatar := db.GetDB().Where("user_id = ?", c.Param("id")).First(&avatar)
-	// Err
-	if findAvatar.Error != nil {
-		println(findAvatar.Error)
+	if err := validationPipeIdNotEqual(c.Param("id"), c.PostForm("user_id")); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
 	}
-
-	if findAvatar.RowsAffected == 0 {
-		// Create new Avatar
+	// Create Form
+	findProfile := db.GetDB().Where("user_id = ?", c.Param("id")).First(&profile)
+	// Err
+	if findProfile.Error != nil {
+		println(findProfile.Error)
+	}
+	if findProfile.RowsAffected == 0 {
+		// Create new Profile
 		userId, _ := strconv.ParseInt(c.PostForm("user_id"), 10, 32)
-		avatar.UserId = uint(userId)
+		profile.UserId = uint(userId)
 		// Use Upload File
-		if err := useUploadFile(&avatar, c); err != nil {
+		if err := useUploadFile(&profile, c); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
 			return
 		}
 		// Create now!
-		if err := db.GetDB().Save(&avatar).Error; err != nil {
+		if err := db.GetDB().Save(&profile).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"success": false, "message": err})
 			return
 		}
 		// Response
-		c.JSON(http.StatusNotFound, gin.H{"success": true, "data": avatar})
+		c.JSON(http.StatusNotFound, gin.H{"success": true, "data": profile})
 	} else {
 		// Use Upload File
-		if err := useUploadFile(&avatar, c); err != nil {
+		if err := useUploadFile(&profile, c); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
 			return
 		}
 		// Update now!
-		if err := db.GetDB().Model(&avatar).Update("avatar", avatar.Avatar).Error; err != nil {
+		if err := db.GetDB().Model(&profile).Update("profile", profile.Profile).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"success": false, "message": err})
 		}
-		c.JSON(http.StatusOK, gin.H{"success": true, "data": avatar})
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": profile})
 	}
-
 }
 
-func GetAvatarById(c *gin.Context) {
-	avatar := model.Avatar{}
+func GetProfileById(c *gin.Context) {
+	profile := model.Profile{}
 	// Invalid id
 	if err := validationPipeId(c.Param("id")); err != nil {
 		log.Println(err)
@@ -141,9 +148,9 @@ func GetAvatarById(c *gin.Context) {
 		return
 	}
 	// Response
-	if err := db.GetDB().Where("id = ?", c.Param("id")).First(&avatar).Error; err != nil {
+	if err := db.GetDB().Where("id = ?", c.Param("id")).First(&profile).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "not found"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": avatar})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": profile})
 }

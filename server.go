@@ -3,6 +3,7 @@ package main
 import (
 	"main/api"
 	"main/db"
+	"net/http"
 	"os"
 	"time"
 
@@ -12,34 +13,56 @@ import (
 
 // handling middleware
 func authorized(c *gin.Context) {
+	// c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+	// c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+	// c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+	// c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT")
+
 	c.Next()
 }
 
 func main() {
-	gin.SetMode(gin.ReleaseMode)
+	// gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 	r.MaxMultipartMemory = 1 << 20
-	corsApi := r.Group("/api", authorized)
-	{
-		corsApi.GET("/avatar/:id", api.GetAvatarById)
-		corsApi.PUT("/avatar/:id", api.UpdateAvatar)
-	}
+
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "PUT"},
-		AllowHeaders:     []string{"Origin, X-Requested-With, Content-Type, Accept, Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
+		AllowHeaders:     []string{"*"},
+		ExposeHeaders:    []string{"*"},
 		AllowCredentials: true,
-		MaxAge: 12 * time.Hour,
+		MaxAge:           12 * time.Hour,
 	}))
+
+	corsApi := r.Group("/api", authorized)
+	{
+		corsApi.GET("/profile/:id", api.GetProfileById)
+		corsApi.PUT("/profile/:id", api.UpdateProfile)
+	}
 
 	r.Static("/public", "./public")
 	db.SetupDB()
 	// start port
 	port := os.Getenv("PORT")
+
 	if port == "" {
-		r.Run(":3000")
+		server := &http.Server{
+			Addr:           ":3000",
+			Handler:        r,
+			ReadTimeout:    10 * time.Second,
+			WriteTimeout:   10 * time.Second,
+			MaxHeaderBytes: 1 << 20,
+		}
+		server.ListenAndServe()
 	} else {
-		r.Run(":" + port)
+		server := &http.Server{
+			Addr:           port,
+			Handler:        r,
+			ReadTimeout:    10 * time.Second,
+			WriteTimeout:   10 * time.Second,
+			MaxHeaderBytes: 1 << 20,
+		}
+		server.ListenAndServe()
 	}
 }
