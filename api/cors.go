@@ -88,8 +88,6 @@ func validationPipeIdNotEqual(id string, user_id string) error {
 func UpdateProfile(c *gin.Context) {
 	profile := model.Profile{}
 
-	log.Println(c.Request.Body)
-
 	// Validate Pipe
 	if err := validationPipeId(c.Param("id")); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
