@@ -14,7 +14,7 @@ func GetDB() *gorm.DB {
 }
 
 func SetupDB() {
-	dsn := "root:@tcp(127.0.0.1:3306)/goprofile_db?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := "root:@tcp(127.0.0.1:3306)/ivypay_profile_db?charset=utf8mb4&parseTime=True&loc=Local"
 	database, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 
 	if err != nil {
